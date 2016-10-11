@@ -28,17 +28,44 @@ PinkMarker <- makeIcon(
 ##########################################################
 ui <- fluidPage(
   HTML( "<h1/>eXtra Trees in Paris - <a href = \"http://opendata.paris.fr/explore/dataset/arbresremarquablesparis2011/\">Paris Open Data</a></h1>"),
-  
+  sidebarLayout(
+    sidebarPanel(
+      radioButtons( "radio", "Map Layout:",
+                    c( "Standard"      = "Standard",
+                       "Thunderforest" = "Thunderforest.Landscape",
+                       "Watercolor"    = "Stamen.Watercolor",
+                       "TonerHybrid"   = "Stamen.TonerHybrid",
+                       "Positron"      = "CartoDB.Positron")),
+      plotOutput("distPlot")),  
+    
     mainPanel(
-      h3( "Click on a tree on the first plot to get its location on the map"),
-      plotlyOutput( "Plot", width = "600px", height = "300px"),
-      br(),
-      leafletOutput( "Map", width = "600px", height = "300px"),
-      br(),
-      HTML( "<h3/>And there are even more eXtra trees <a href = \"https://www.mnhn.fr/sites/mnhn.fr/files/parcours/arbres_historiques_jardin_des_plantes.pdf\">in Jardin des Plantes</a></h3>")))
+      tabsetPanel(
+        tabPanel( "Find eXtra Trees", 
+                  plotlyOutput( "Plot", width = "600px", height = "300px"),
+                  br(),
+                  leafletOutput( "Map", width = "600px", height = "300px")),
+        
+        tabPanel( "Documentation",  
+                  h3( "The goal of this app is to click on a tree on the 
+                                first plot regarding its caracteristics. 
+                                And then look at its location on the map below the plot."),
+                  h3( "On the left side bar you can also choose a landscape type for the map."),
+                  br(),
+                  h3( "In the third tab 'Other eXtra' there are also nice trees from the Jardin des Plantes.")),
 
+                tabPanel( "Other eXtras", uiOutput( "PDF"))
+                  
+      ))))
 ##########################################################
 server <- function( input, output){
+  
+  output$PDF <- renderUI({
+    PDFfile = "http://www.mnhn.fr/sites/mnhn.fr/files/parcours/arbres_historiques_jardin_des_plantes.pdf"
+    tags$iframe(
+      src = PDFfile,
+      width = "100%",
+      height = "800px")
+  })
   
   output$Plot <- renderPlotly({
     plot_ly( XTreesParis, 
@@ -51,6 +78,20 @@ server <- function( input, output){
   
   output$Map <- renderLeaflet({
     clicked <- event_data( "plotly_click")
+    m <- leaflet() 
+    
+    if( input$radio == "Standard") m <- m %>% addTiles()
+    else m <- m %>% addProviderTiles( input$radio) 
+    
+     m <- m %>%
+      setView( lng = 2.348785, lat = 48.853402, zoom = 11) %>%
+      addMarkers( lng = ~ Y, lat = ~ X,
+                  popup = ~ Popup,
+                  icon = GreenMarker,
+                  data = XTreesParis)
+    
+    output$value <- renderPrint({ input$radio })    
+    
     if( ! is.null( clicked)) {
       
       ## find the coordinate of the clicked tree
@@ -58,26 +99,14 @@ server <- function( input, output){
         filter( Year == clicked$x, 
                 Height == clicked$y)
       
-      leaflet() %>%
-        addTiles() %>%
-        setView( lng = 2.348785, lat = 48.853402, zoom = 11) %>%
-        addMarkers( lng = ~ Y, lat = ~ X,
-                    popup = ~ Popup,
-                    icon = GreenMarker,
-                    data = XTreesParis) %>%
+      m %>% 
         addMarkers( lng = ~ Y, lat = ~ X,
                     popup = ~ Popup,
                     icon = PinkMarker,
                     data = PinkTree)}
     else {
-      leaflet() %>%
-        addTiles() %>%
-        setView( lng = 2.348785, lat = 48.853402, zoom = 11) %>%
-        addMarkers( lng = ~ Y, lat = ~ X,
-                    popup = ~ Popup,
-                    icon = GreenMarker,
-                    data = XTreesParis)}
-})}
+    m }
+  })}
 
 ##########################################################
 shinyApp(ui, server)
